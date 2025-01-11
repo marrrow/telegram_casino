@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Minion Casino</title>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      // If user opened from Telegram WebApp, we have window.Telegram.WebApp
+      const tg = window.Telegram ? window.Telegram.WebApp : null;
+      if (!tg) {
+        document.body.innerHTML = '<h3>Please open in Telegram</h3>';
+        return;
+      }
+      // Initialize
+      tg.ready();
+      // Now we can read the user info
+      const userId = tg.initDataUnsafe?.user?.id || null;
+      if (!userId) {
+        document.body.innerHTML = '<h3>Could not read Telegram user ID</h3>';
+        return;
+      }
+
+      document.body.innerHTML = `
+        <h1>Welcome, user ${userId}!</h1>
+        <button id="balanceBtn">Check Balance</button>
+        <div id="balanceArea"></div>
+        ...
+      `;
+
+      // Example: fetch balance
+      const balanceBtn = document.getElementById('balanceBtn');
+      const balanceDiv = document.getElementById('balanceArea');
+      balanceBtn.addEventListener('click', async () => {
+        try {
+          const resp = await fetch(\`http://YOUR_SERVER_IP:3000/balance?userId=\${userId}\`);
+          const data = await resp.json();
+          balanceDiv.textContent = \`Your diamond balance: \${data.diamondBalance}\`;
+        } catch (err) {
+          console.error(err);
+          balanceDiv.textContent = 'Error fetching balance';
+        }
+      });
+    });
+  </script>
+</head>
+<body>
+Loading...
+</body>
+</html>
