@@ -43,10 +43,11 @@
   </style>
 
   <script>
-    // Change this to wherever your Node.js server is accessible
+    // Change this to wherever your Node.js server is accessible publicly.
+    // If you're just testing locally, you might try an ngrok URL like https://abc123.ngrok.io
+    // or a VPS domain with SSL for iOS support.
     const API_BASE = 'http://YOUR_SERVER_IP:3000';
-    // If you have a public domain with HTTPS, do: 
-    // const API_BASE = 'https://your-casino-api-domain.com';
+    // e.g. const API_BASE = 'https://yourdomain.com';
 
     window.addEventListener('DOMContentLoaded', () => {
       const tg = window.Telegram ? window.Telegram.WebApp : null;
@@ -55,15 +56,16 @@
         return;
       }
       tg.ready();
-      
-      // 1) Get user ID
-      const userId = tg.initDataUnsafe?.user?.id || null;
+
+      const userId = tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id
+        ? tg.initDataUnsafe.user.id
+        : null;
       if (!userId) {
         document.body.innerHTML = '<h3>Could not read Telegram user ID</h3>';
         return;
       }
 
-      // Build our minimal UI
+      // Build minimal UI
       document.body.innerHTML = `
         <h1>Welcome, user <span id="userIdDisplay"></span>!</h1>
         
@@ -78,7 +80,6 @@
           <button id="showAddressBtn">Show Deposit Address</button>
           <div id="addressArea"></div>
           <br>
-          <!-- Simulate deposit for testing -->
           <label>Sim Deposit Amount:</label>
           <input type="number" id="simDepositAmount" value="100" />
           <button id="simDepositBtn">Simulate Deposit</button>
@@ -96,15 +97,13 @@
         <div class="section">
           <h2>Place a Bet</h2>
           
-          <!-- EXACT SUM -->
           <div>
             <strong>Exact Sum Bet</strong><br>
             <label>Sum (2-22):</label><input type="number" id="exactSum" value="11" />
-            <label>Bet Amount:</label><input type="number" id="exactBet" value="10" />
+            <label>Bet:</label><input type="number" id="exactBet" value="10" />
             <button id="exactBtn">Bet Exact</button>
           </div>
           <br>
-          <!-- HIGHER/LOWER -->
           <div>
             <strong>Higher / Lower Bet</strong><br>
             <label>Target #:</label><input type="number" id="hlNumber" value="10" />
@@ -117,7 +116,6 @@
             <button id="hlBtn">Bet HL</button>
           </div>
           <br>
-          <!-- RANGE -->
           <div>
             <strong>Range Bet</strong><br>
             <label>From:</label><input type="number" id="rangeFrom" value="8" />
@@ -133,121 +131,123 @@
       // Fill user ID display
       document.getElementById('userIdDisplay').textContent = userId;
 
-      // 2) Check Balance
+      // Check Balance
       const checkBalanceBtn = document.getElementById('checkBalanceBtn');
       const balanceDisplay = document.getElementById('balanceDisplay');
       checkBalanceBtn.addEventListener('click', async () => {
         try {
-          const resp = await fetch(`${API_BASE}/balance?userId=${userId}`);
+          const resp = await fetch(\`${API_BASE}/balance?userId=\${userId}\`);
           const data = await resp.json();
           if (data.error) {
-            balanceDisplay.textContent = `Error: ${data.error}`;
+            balanceDisplay.textContent = 'Error: ' + data.error;
           } else {
-            balanceDisplay.textContent = `Your diamond balance: ${data.diamondBalance}`;
+            balanceDisplay.textContent = 'Your diamond balance: ' + data.diamondBalance;
           }
         } catch (err) {
           console.error(err);
-          balanceDisplay.textContent = 'Error fetching balance';
+          balanceDisplay.textContent = 'Error fetching balance.';
         }
       });
 
-      // 3) Show Deposit Address
+      // Show Deposit Address
       const showAddressBtn = document.getElementById('showAddressBtn');
       const addressArea = document.getElementById('addressArea');
       showAddressBtn.addEventListener('click', async () => {
+        addressArea.textContent = 'Fetching deposit address...';
         try {
-          const resp = await fetch(`${API_BASE}/createAddress`, {
+          const resp = await fetch(\`\${API_BASE}/createAddress\`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId })
           });
           const data = await resp.json();
           if (data.error) {
-            addressArea.textContent = `Error: ${data.error}`;
+            addressArea.textContent = 'Error: ' + data.error;
           } else {
-            addressArea.textContent = `Your deposit address: ${data.depositAddress}`;
+            addressArea.textContent = 'Your deposit address: ' + data.depositAddress;
           }
         } catch (err) {
           console.error(err);
-          addressArea.textContent = 'Error fetching address';
+          addressArea.textContent = 'Error fetching address.';
         }
       });
 
-      // 4) Simulate Deposit
-      const simDepositAmount = document.getElementById('simDepositAmount');
+      // Simulate Deposit
       const simDepositBtn = document.getElementById('simDepositBtn');
+      const simDepositAmount = document.getElementById('simDepositAmount');
       const depositMsg = document.getElementById('depositMsg');
       simDepositBtn.addEventListener('click', async () => {
+        depositMsg.textContent = 'Simulating deposit...';
         try {
           const amountVal = Number(simDepositAmount.value);
-          const resp = await fetch(`${API_BASE}/simulateDeposit`, {
+          const resp = await fetch(\`\${API_BASE}/simulateDeposit\`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId, amount: amountVal })
           });
           const data = await resp.json();
           if (data.error) {
-            depositMsg.textContent = `Error: ${data.error}`;
+            depositMsg.textContent = 'Error: ' + data.error;
           } else {
-            depositMsg.textContent = `Deposit success: newBalance=${data.newBalance}`;
+            depositMsg.textContent = 'Deposit success! New Balance = ' + data.newBalance;
           }
         } catch (err) {
           console.error(err);
-          depositMsg.textContent = 'Error depositing';
+          depositMsg.textContent = 'Error depositing.';
         }
       });
 
-      // 5) Withdraw
-      const withdrawAmount = document.getElementById('withdrawAmount');
+      // Withdraw
       const withdrawBtn = document.getElementById('withdrawBtn');
+      const withdrawAmount = document.getElementById('withdrawAmount');
       const withdrawMsg = document.getElementById('withdrawMsg');
       withdrawBtn.addEventListener('click', async () => {
+        withdrawMsg.textContent = 'Requesting withdrawal...';
         try {
           const amtVal = Number(withdrawAmount.value);
-          const resp = await fetch(`${API_BASE}/requestWithdrawal`, {
+          const resp = await fetch(\`\${API_BASE}/requestWithdrawal\`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId, amount: amtVal })
           });
           const data = await resp.json();
           if (data.error) {
-            withdrawMsg.textContent = `Error: ${data.error}`;
+            withdrawMsg.textContent = 'Error: ' + data.error;
           } else {
-            withdrawMsg.textContent = `Withdrawal status: ${data.status}, newBalance=${data.newBalance}`;
+            withdrawMsg.textContent = \`Withdrawal status: \${data.status}, newBalance=\${data.newBalance}\`;
           }
         } catch (err) {
           console.error(err);
-          withdrawMsg.textContent = 'Error requesting withdrawal';
+          withdrawMsg.textContent = 'Error requesting withdrawal.';
         }
       });
 
-      // 6) Bet Buttons
+      // Place Bet
       const resultArea = document.getElementById('resultArea');
 
       // EXACT
-      document.getElementById('exactBtn').addEventListener('click', async () => {
-        const exactSum = Number(document.getElementById('exactSum').value);
-        const betAmount = Number(document.getElementById('exactBet').value);
-        placeBet('exact', { exactSum }, betAmount);
+      document.getElementById('exactBtn').addEventListener('click', () => {
+        const exactSumVal = Number(document.getElementById('exactSum').value);
+        const betVal = Number(document.getElementById('exactBet').value);
+        placeBet('exact', { exactSum: exactSumVal }, betVal);
       });
 
-      // HIGHER/LOWER
-      document.getElementById('hlBtn').addEventListener('click', async () => {
-        const hlNumber = Number(document.getElementById('hlNumber').value);
-        const hlChoice = document.getElementById('hlChoice').value;
-        const betAmount = Number(document.getElementById('hlBet').value);
-        placeBet('hl', { hlNumber, hlChoice }, betAmount);
+      // HL
+      document.getElementById('hlBtn').addEventListener('click', () => {
+        const hlNumberVal = Number(document.getElementById('hlNumber').value);
+        const hlChoiceVal = document.getElementById('hlChoice').value;
+        const betVal = Number(document.getElementById('hlBet').value);
+        placeBet('hl', { hlNumber: hlNumberVal, hlChoice: hlChoiceVal }, betVal);
       });
 
       // RANGE
-      document.getElementById('rangeBtn').addEventListener('click', async () => {
-        const rangeFrom = Number(document.getElementById('rangeFrom').value);
-        const rangeTo = Number(document.getElementById('rangeTo').value);
-        const betAmount = Number(document.getElementById('rangeBet').value);
-        placeBet('range', { rangeFrom, rangeTo }, betAmount);
+      document.getElementById('rangeBtn').addEventListener('click', () => {
+        const fromVal = Number(document.getElementById('rangeFrom').value);
+        const toVal = Number(document.getElementById('rangeTo').value);
+        const betVal = Number(document.getElementById('rangeBet').value);
+        placeBet('range', { rangeFrom: fromVal, rangeTo: toVal }, betVal);
       });
 
-      // 7) placeBet function
       async function placeBet(betType, extraData, betAmount) {
         resultArea.textContent = 'Placing bet...';
         try {
@@ -256,24 +256,22 @@
             betType,
             betAmount
           };
-          // Merge in extraData (exactSum, or hlNumber+hlChoice, or rangeFrom+rangeTo)
+          // Merge extra data: exactSum, hlNumber/hlChoice, or rangeFrom/rangeTo
           Object.assign(bodyData, extraData);
 
-          const resp = await fetch(`${API_BASE}/placeBet`, {
+          const resp = await fetch(\`\${API_BASE}/placeBet\`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(bodyData)
           });
           const result = await resp.json();
           if (result.error) {
-            resultArea.textContent = `Bet error: ${result.error}`;
+            resultArea.textContent = 'Bet error: ' + result.error;
           } else {
             if (result.isWin) {
-              resultArea.textContent = `You WON! Dice=[${result.dice.join(',')}], sum=${result.sum}. 
-                DiamondsWon=${result.diamondsWon}, newBalance=${result.newBalance}`;
+              resultArea.textContent = \`You WON! Dice=[\${result.dice.join(',')}], sum=\${result.sum}. DiamondsWon=\${result.diamondsWon}, newBalance=\${result.newBalance}\`;
             } else {
-              resultArea.textContent = `You lost. Dice=[${result.dice.join(',')}], sum=${result.sum}. 
-                newBalance=${result.newBalance}`;
+              resultArea.textContent = \`You lost. Dice=[\${result.dice.join(',')}], sum=\${result.sum}. newBalance=\${result.newBalance}\`;
             }
           }
         } catch (err) {
