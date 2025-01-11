@@ -43,6 +43,295 @@
   </style>
 
   <script>
+    // For local dev on the same Mac with Telegram Desktop, this might work:
+    // if your Node server is "node server.js" on localhost:3000
+    const API_BASE = 'http://localhost:3000';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      // Check if we have Telegram WebApp
+      const tg = window.Telegram ? window.Telegram.WebApp : null;
+      if (!tg) {
+        document.body.innerHTML = '<h3>Please open in Telegram</h3>';
+        return;
+      }
+      tg.ready();
+
+      // Read user ID from Telegram
+      const userId = tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id
+        ? tg.initDataUnsafe.user.id
+        : null;
+      if (!userId) {
+        document.body.innerHTML = '<h3>Could not read Telegram user ID</h3>';
+        return;
+      }
+
+      // Build the basic UI
+      document.body.innerHTML = `
+        <h1>Welcome, user <span id="userIdDisplay"></span>!</h1>
+        
+        <div class="section">
+          <h2>Balance</h2>
+          <button id="checkBalanceBtn">Check Balance</button>
+          <div id="balanceDisplay"></div>
+        </div>
+        
+        <div class="section">
+          <h2>Deposit</h2>
+          <button id="showAddressBtn">Show Deposit Address</button>
+          <div id="addressArea"></div>
+          <br>
+          <label>Sim Deposit Amount:</label>
+          <input type="number" id="simDepositAmount" value="100" />
+          <button id="simDepositBtn">Simulate Deposit</button>
+          <div id="depositMsg"></div>
+        </div>
+        
+        <div class="section">
+          <h2>Withdrawal</h2>
+          <label>Withdraw Amount:</label>
+          <input type="number" id="withdrawAmount" value="10" />
+          <button id="withdrawBtn">Request Withdrawal</button>
+          <div id="withdrawMsg"></div>
+        </div>
+
+        <div class="section">
+          <h2>Place a Bet</h2>
+          
+          <div>
+            <strong>Exact Sum Bet</strong><br>
+            <label>Sum (2-22):</label><input type="number" id="exactSum" value="11" />
+            <label>Bet:</label><input type="number" id="exactBet" value="10" />
+            <button id="exactBtn">Bet Exact</button>
+          </div>
+          <br>
+          <div>
+            <strong>Higher / Lower Bet</strong><br>
+            <label>Target #:</label><input type="number" id="hlNumber" value="10" />
+            <label>Choice:</label>
+            <select id="hlChoice">
+              <option value="higher">Higher</option>
+              <option value="lower">Lower</option>
+            </select>
+            <label>Bet:</label><input type="number" id="hlBet" value="5" />
+            <button id="hlBtn">Bet HL</button>
+          </div>
+          <br>
+          <div>
+            <strong>Range Bet</strong><br>
+            <label>From:</label><input type="number" id="rangeFrom" value="8" />
+            <label>To:</label><input type="number" id="rangeTo" value="14" />
+            <label>Bet:</label><input type="number" id="rangeBet" value="15" />
+            <button id="rangeBtn">Bet Range</button>
+          </div>
+
+          <div id="resultArea"></div>
+        </div>
+      `;
+
+      // Fill user ID display
+      document.getElementById('userIdDisplay').textContent = userId;
+
+      // ---- Check Balance ----
+      const checkBalanceBtn = document.getElementById('checkBalanceBtn');
+      const balanceDisplay = document.getElementById('balanceDisplay');
+      checkBalanceBtn.addEventListener('click', async () => {
+        balanceDisplay.textContent = 'Checking balance...';
+        try {
+          const resp = await fetch(`${API_BASE}/balance?userId=${userId}`);
+          const data = await resp.json();
+          if (data.error) {
+            balanceDisplay.textContent = 'Error: ' + data.error;
+          } else {
+            balanceDisplay.textContent = 'Your diamond balance: ' + data.diamondBalance;
+          }
+        } catch (err) {
+          console.error(err);
+          balanceDisplay.textContent = 'Error fetching balance.';
+        }
+      });
+
+      // ---- Show Deposit Address ----
+      const showAddressBtn = document.getElementById('showAddressBtn');
+      const addressArea = document.getElementById('addressArea');
+      showAddressBtn.addEventListener('click', async () => {
+        addressArea.textContent = 'Fetching deposit address...';
+        try {
+          const resp = await fetch(`${API_BASE}/createAddress`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId })
+          });
+          const data = await resp.json();
+          if (data.error) {
+            addressArea.textContent = 'Error: ' + data.error;
+          } else {
+            addressArea.textContent = 'Your deposit address: ' + data.depositAddress;
+          }
+        } catch (err) {
+          console.error(err);
+          addressArea.textContent = 'Error fetching address.';
+        }
+      });
+
+      // ---- Simulate Deposit ----
+      const simDepositBtn = document.getElementById('simDepositBtn');
+      const simDepositAmount = document.getElementById('simDepositAmount');
+      const depositMsg = document.getElementById('depositMsg');
+      simDepositBtn.addEventListener('click', async () => {
+        depositMsg.textContent = 'Simulating deposit...';
+        try {
+          const amountVal = Number(simDepositAmount.value);
+          const resp = await fetch(`${API_BASE}/simulateDeposit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, amount: amountVal })
+          });
+          const data = await resp.json();
+          if (data.error) {
+            depositMsg.textContent = 'Error: ' + data.error;
+          } else {
+            depositMsg.textContent = 'Deposit success! New Balance = ' + data.newBalance;
+          }
+        } catch (err) {
+          console.error(err);
+          depositMsg.textContent = 'Error depositing.';
+        }
+      });
+
+      // ---- Withdraw ----
+      const withdrawBtn = document.getElementById('withdrawBtn');
+      const withdrawAmount = document.getElementById('withdrawAmount');
+      const withdrawMsg = document.getElementById('withdrawMsg');
+      withdrawBtn.addEventListener('click', async () => {
+        withdrawMsg.textContent = 'Requesting withdrawal...';
+        try {
+          const amtVal = Number(withdrawAmount.value);
+          const resp = await fetch(`${API_BASE}/requestWithdrawal`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, amount: amtVal })
+          });
+          const data = await resp.json();
+          if (data.error) {
+            withdrawMsg.textContent = 'Error: ' + data.error;
+          } else {
+            // e.g. "Withdrawal status: auto-approved, newBalance=80"
+            withdrawMsg.textContent = `Withdrawal status: ${data.status}, newBalance=${data.newBalance}`;
+          }
+        } catch (err) {
+          console.error(err);
+          withdrawMsg.textContent = 'Error requesting withdrawal.';
+        }
+      });
+
+      // ---- Betting ----
+      const resultArea = document.getElementById('resultArea');
+      // Exact Bet
+      document.getElementById('exactBtn').addEventListener('click', async () => {
+        const exactSumVal = Number(document.getElementById('exactSum').value);
+        const betVal = Number(document.getElementById('exactBet').value);
+        placeBet('exact', { exactSum: exactSumVal }, betVal);
+      });
+      // HL Bet
+      document.getElementById('hlBtn').addEventListener('click', async () => {
+        const hlNumberVal = Number(document.getElementById('hlNumber').value);
+        const hlChoiceVal = document.getElementById('hlChoice').value;
+        const betVal = Number(document.getElementById('hlBet').value);
+        placeBet('hl', { hlNumber: hlNumberVal, hlChoice: hlChoiceVal }, betVal);
+      });
+      // Range Bet
+      document.getElementById('rangeBtn').addEventListener('click', async () => {
+        const fromVal = Number(document.getElementById('rangeFrom').value);
+        const toVal = Number(document.getElementById('rangeTo').value);
+        const betVal = Number(document.getElementById('rangeBet').value);
+        placeBet('range', { rangeFrom: fromVal, rangeTo: toVal }, betVal);
+      });
+
+      async function placeBet(betType, extraData, betAmount) {
+        resultArea.textContent = 'Placing bet...';
+        try {
+          const bodyData = {
+            userId,
+            betType,
+            betAmount
+          };
+          // Merge in extraData (exactSum, hlNumber/hlChoice, rangeFrom/rangeTo)
+          Object.assign(bodyData, extraData);
+
+          const resp = await fetch(`${API_BASE}/placeBet`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyData)
+          });
+          const result = await resp.json();
+          if (result.error) {
+            resultArea.textContent = 'Bet error: ' + result.error;
+          } else {
+            if (result.isWin) {
+              resultArea.textContent = `You WON! Dice=[${result.dice.join(',')}], sum=${result.sum}. ` +
+                `DiamondsWon=${result.diamondsWon}, newBalance=${result.newBalance}`;
+            } else {
+              resultArea.textContent = `You lost. Dice=[${result.dice.join(',')}], sum=${result.sum}. ` +
+                `newBalance=${result.newBalance}`;
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          resultArea.textContent = 'Error placing bet.';
+        }
+      }
+    });
+  </script>
+</head>
+<body>
+Loading...
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Minion Casino</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    button {
+      margin: 5px 0;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      background: #007bff;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .section {
+      border: 1px solid #ddd;
+      padding: 15px;
+      margin-top: 15px;
+      border-radius: 5px;
+    }
+    .section h2 {
+      margin-top: 0;
+    }
+    input[type="number"], input[type="text"] {
+      padding: 5px;
+      margin-right: 5px;
+    }
+    .result, #balanceDisplay, #resultArea {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+  </style>
+
+  <script>
     // Change this to wherever your Node.js server is accessible publicly.
     // If you're just testing locally, you might try an ngrok URL like https://abc123.ngrok.io
     // or a VPS domain with SSL for iOS support.
